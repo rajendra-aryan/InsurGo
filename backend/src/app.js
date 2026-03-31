@@ -11,15 +11,34 @@ const premiumRoutes = require("./routes/premium");
 const app = express();
 
 // ─── Core Middleware ───────────────────────────────────────
-app.use(cors({
-  origin: [
-    "http://localhost:8080",
-    "http://localhost:5173",
-    "http://localhost:3000",
-    process.env.FRONTEND_URL,
-  ].filter(Boolean),
-  credentials: true,
-}));
+
+// In development, accept any localhost/127.0.0.1 origin so the
+// frontend works regardless of which port Vite picks.
+// In production, only the explicitly-set FRONTEND_URL is allowed.
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+].filter(Boolean);
+
+const corsOrigin = (origin, callback) => {
+  // Allow requests with no origin (e.g. curl, Postman, mobile apps)
+  if (!origin) return callback(null, true);
+
+  // Development: permit any localhost or 127.0.0.1 origin
+  if (process.env.NODE_ENV !== "production") {
+    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+      return callback(null, true);
+    }
+  }
+
+  // Production: check against the explicit allow-list
+  if (allowedOrigins.includes(origin)) {
+    return callback(null, true);
+  }
+
+  callback(new Error(`CORS: origin '${origin}' not allowed`));
+};
+
+app.use(cors({ origin: corsOrigin, credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
