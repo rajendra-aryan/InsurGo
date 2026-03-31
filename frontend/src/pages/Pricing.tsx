@@ -23,7 +23,11 @@ const Pricing = () => {
   useEffect(() => {
     policyApi.getPlans()
       .then(({ data }) => { setPlans(data.plans); setLoading(false); })
-      .catch(() => { setError("Could not load plans — backend may be offline."); setLoading(false); });
+      .catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message : "Could not load plans.";
+        setError(msg);
+        setLoading(false);
+      });
   }, []);
 
   const handleSelectPlan = (plan: Plan) => {
@@ -50,7 +54,26 @@ const Pricing = () => {
       <div className="min-h-screen pt-24 flex items-center justify-center">
         <div className="text-center max-w-md">
           <p className="text-destructive font-medium mb-2">{error}</p>
-          <p className="text-sm text-muted-foreground">Make sure the backend is running on port 5000.</p>
+          <p className="text-sm text-muted-foreground">
+            Make sure the backend is running on port 5000 and plans have been seeded{" "}
+            (<code className="text-xs bg-muted px-1 rounded">npm run seed</code>).
+          </p>
+          <Button variant="outline" className="mt-4" onClick={() => window.location.reload()}>Retry</Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!loading && plans.length === 0) {
+    return (
+      <div className="min-h-screen pt-24 flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <p className="text-foreground font-medium mb-2">No insurance plans found.</p>
+          <p className="text-sm text-muted-foreground">
+            Run{" "}
+            <code className="text-xs bg-muted px-1 rounded">npm run seed</code>{" "}
+            in the backend directory to populate the plans.
+          </p>
           <Button variant="outline" className="mt-4" onClick={() => window.location.reload()}>Retry</Button>
         </div>
       </div>

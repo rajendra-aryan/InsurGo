@@ -13,3 +13,14 @@ Object.defineProperty(window, "matchMedia", {
     dispatchEvent: () => {},
   }),
 });
+
+// framer-motion's whileInView requires IntersectionObserver
+class IntersectionObserverMock {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+Object.defineProperty(window, "IntersectionObserver", {
+  writable: true,
+  value: IntersectionObserverMock,
+});
