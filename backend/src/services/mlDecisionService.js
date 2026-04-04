@@ -9,6 +9,10 @@ const ML_MODEL_VERSION = process.env.ML_MODEL_VERSION || "premium_model1B.pkl";
 const ACTIVE_USER_THRESHOLD_MS = 60 * 60 * 1000;
 const MIN_CLAIM_AMOUNT = 50;
 const CLAIM_AMOUNT_PER_COUNT = 50;
+const DEFAULT_TEMPERATURE_C = 0;
+const LOW_MOVEMENT_THRESHOLD_M = 200;
+const HEAVY_RAIN_THRESHOLD_MM = 60;
+const POLLUTION_THRESHOLD_AQI = 300;
 
 const toNumber = (value, fallback = 0) => {
   const parsed = Number(value);
@@ -27,19 +31,38 @@ const buildMlPayload = ({
 }) => {
   const rainfallFromEvent = event?.rawData?.rainfallMm ?? event?.triggerValue;
   const aqiFromEvent = event?.rawData?.aqiValue ?? (event?.type === "aqi" ? event?.triggerValue : 0);
+  const temperatureFromEvent = event?.rawData?.temperature;
+  const speedFromSnapshot = gpsSnapshot?.speed;
   const distanceMovedM = toNumber(gpsSnapshot?.distanceMovedM, gpsSnapshot ? 150 : 500);
+  const rainfallMm = toNumber(rainfallFromEvent, 0);
+  const aqi = toNumber(aqiFromEvent, 0);
+  const speedKmh = toNumber(speedFromSnapshot, 0);
+  const kycScore = toNumber(user?.kycScore, 0);
+  const ipDistance = toNumber(ipDistanceKm, 0);
+  const claimAmountValue = toNumber(
+    claimAmount,
+    Math.max(MIN_CLAIM_AMOUNT, claimCount * CLAIM_AMOUNT_PER_COUNT)
+  );
   const activeUser =
     user?.lastActiveAt && Date.now() - new Date(user.lastActiveAt).getTime() <= ACTIVE_USER_THRESHOLD_MS;
+  // low_movement is a training feature that flags near-stationary claims.
+  const low_movement = toBinary(distanceMovedM < LOW_MOVEMENT_THRESHOLD_M);
+  // high_risk_zone is a training feature indicating severe rain or AQI conditions.
+  const high_risk_zone = toBinary(
+    rainfallMm > HEAVY_RAIN_THRESHOLD_MM || aqi > POLLUTION_THRESHOLD_AQI
+  );
 
   return {
-    rainfall_mm: toNumber(rainfallFromEvent, 0),
-    aqi: toNumber(aqiFromEvent, 0),
-    claim_amount: toNumber(
-      claimAmount,
-      Math.max(MIN_CLAIM_AMOUNT, claimCount * CLAIM_AMOUNT_PER_COUNT)
-    ),
-    ip_distance_km: toNumber(ipDistanceKm, 0),
+    rainfall_mm: rainfallMm,
+    aqi,
+    temperature: toNumber(temperatureFromEvent, DEFAULT_TEMPERATURE_C),
+    speed_kmh: speedKmh,
     distance_moved_m: distanceMovedM,
+    claim_amount: claimAmountValue,
+    kyc_score: kycScore,
+    ip_distance_km: ipDistance,
+    low_movement,
+    high_risk_zone,
     is_active: toBinary(activeUser || !!gpsSnapshot),
   };
 };
