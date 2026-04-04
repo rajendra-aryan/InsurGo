@@ -1,16 +1,4 @@
 services:
-  mongo:
-    image: mongo:7
-    container_name: insurgo-mongo
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongo_data:/data/db
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
 
   ml:
     build:
@@ -32,13 +20,10 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      MONGODB_URI: mongodb://mongo:27017/insurgo
       ML_SERVICE_URL: http://ml:8000/insurance-decision
       ML_HEALTH_URL: http://ml:8000/health
       FRONTEND_URL: http://localhost:5173
     depends_on:
-      mongo:
-        condition: service_healthy
       ml:
         condition: service_healthy
     ports:
