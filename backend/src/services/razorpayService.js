@@ -9,6 +9,7 @@
 
 const Razorpay = require("razorpay");
 const axios = require("axios");
+const crypto = require("crypto");
 const logger = require("../config/logger");
 
 const getMissingEnvVars = (keys = []) =>
@@ -240,4 +241,5 @@ module.exports = {
   getPayoutStatus,
   createPremiumOrder,
   verifyPaymentSignature,
+  buildPremiumReceipt,
 };
