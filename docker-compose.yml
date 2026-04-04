@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   mongo:
     image: mongo:7
@@ -22,7 +20,7 @@ services:
     ports:
       - "8000:8000"
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -32,7 +30,7 @@ services:
       context: ./backend
     container_name: insurgo-backend
     env_file:
-      - ./backend/.env.pipeline.example
+      - ./backend/.env
     environment:
       MONGODB_URI: mongodb://mongo:27017/insurgo
       ML_SERVICE_URL: http://ml:8000/insurance-decision
@@ -46,7 +44,7 @@ services:
     ports:
       - "5000:5000"
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:5000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
       interval: 10s
       timeout: 5s
       retries: 10
