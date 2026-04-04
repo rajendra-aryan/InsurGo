@@ -11,9 +11,31 @@ const Razorpay = require("razorpay");
 const axios = require("axios");
 const logger = require("../config/logger");
 
+const getMissingEnvVars = (keys = []) =>
+  keys.filter((key) => !process.env[key] || String(process.env[key]).trim() === "");
+
+const assertEnvVars = (keys = []) => {
+  const missing = getMissingEnvVars(keys);
+  if (missing.length) {
+    throw new Error(`Missing Razorpay configuration: ${missing.join(", ")}`);
+  }
+};
+
+const extractErrorMessage = (error, fallback = "Unknown Razorpay error") => {
+  return (
+    error?.response?.data?.description ||
+    error?.response?.data?.error?.description ||
+    error?.response?.data?.message ||
+    error?.error?.description ||
+    error?.message ||
+    fallback
+  );
+};
+
 // Lazy-initialize so the module can be required before .env is loaded
 let _razorpay = null;
 const getRazorpay = () => {
+  assertEnvVars(["RAZORPAY_KEY_ID", "RAZORPAY_KEY_SECRET"]);
   if (!_razorpay) {
     _razorpay = new Razorpay({
       key_id: process.env.RAZORPAY_KEY_ID,
@@ -25,6 +47,7 @@ const getRazorpay = () => {
 
 // Base64 auth for Payout API (uses key:secret)
 const getAuthHeader = () => {
+  assertEnvVars(["RAZORPAY_KEY_ID", "RAZORPAY_KEY_SECRET"]);
   const creds = `${process.env.RAZORPAY_KEY_ID}:${process.env.RAZORPAY_KEY_SECRET}`;
   return `Basic ${Buffer.from(creds).toString("base64")}`;
 };
@@ -102,6 +125,7 @@ const getOrCreateContact = async (user) => {
  */
 const initiatePayout = async ({ fundAccountId, amountInPaise, claimId, workerName }) => {
   try {
+    assertEnvVars(["RAZORPAY_ACCOUNT_NUMBER"]);
     const payload = {
       account_number: process.env.RAZORPAY_ACCOUNT_NUMBER,
       fund_account_id: fundAccountId,
@@ -141,7 +165,7 @@ const initiatePayout = async ({ fundAccountId, amountInPaise, claimId, workerNam
       mode: data.mode,
     };
   } catch (error) {
-    const errMsg = error.response?.data?.description || error.message;
+    const errMsg = extractErrorMessage(error, "Unknown payout error");
     logger.error(`initiatePayout error: ${errMsg}`);
     throw new Error(`Payout failed: ${errMsg}`);
   }
@@ -178,8 +202,9 @@ const createPremiumOrder = async (amountInPaise, policyId) => {
     });
     return order;
   } catch (error) {
-    logger.error(`createPremiumOrder error: ${error.message}`);
-    throw new Error(`Failed to create payment order: ${error.message}`);
+    const errMsg = extractErrorMessage(error, "Unknown Razorpay order creation error");
+    logger.error(`createPremiumOrder error: ${errMsg}`);
+    throw new Error(`Failed to create payment order: ${errMsg}`);
   }
 };
 
@@ -187,6 +212,7 @@ const createPremiumOrder = async (amountInPaise, policyId) => {
  * Verify Razorpay payment signature after premium collection.
  */
 const verifyPaymentSignature = ({ orderId, paymentId, signature }) => {
+  assertEnvVars(["RAZORPAY_KEY_SECRET"]);
   const crypto = require("crypto");
   const body = `${orderId}|${paymentId}`;
   const expectedSig = crypto
