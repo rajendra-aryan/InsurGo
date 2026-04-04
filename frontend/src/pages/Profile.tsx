@@ -100,7 +100,7 @@ const Profile = () => {
                 ? user.deliveryPlatform.charAt(0).toUpperCase() + user.deliveryPlatform.slice(1) + " Delivery Partner"
                 : "InsurGo Member"}
             </p>
-            {user.kycScore >= 70 && (
+            {user.kycScore >= 15 && (
               <span className="inline-block mt-2 px-3 py-1 rounded-full bg-accent/10 text-accent text-xs font-medium">
                 ✅ Verified Rider
               </span>

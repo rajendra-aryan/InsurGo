@@ -22,6 +22,7 @@ const {
   createPremiumOrder,
   initiatePayout,
   verifyPaymentSignature,
+  buildPremiumReceipt
 } = require("../src/services/razorpayService");
 
 describe("razorpayService", () => {
@@ -43,6 +44,12 @@ describe("razorpayService", () => {
     await expect(createPremiumOrder(4900, "policy_1")).rejects.toThrow(
       "Failed to create payment order: Unknown Razorpay order creation error"
     );
+  });
+
+  it("builds receipt with length <= 40 for long policy ids", () => {
+    const receipt = buildPremiumReceipt("temp_123456789012345678901234567890_verylongplanid");
+    expect(receipt.length).toBeLessThanOrEqual(40);
+    expect(receipt.startsWith("premium_")).toBe(true);
   });
 
   it("throws explicit config error when payout account number is missing", async () => {

@@ -1,5 +1,5 @@
 const KYC_MINIMUM_SCORE_TO_SUBSCRIBE = parseInt(
-  process.env.KYC_MINIMUM_SCORE_TO_SUBSCRIBE || "70",
+  process.env.KYC_MINIMUM_SCORE_TO_SUBSCRIBE || "15",
   10
 );
 

@@ -9,6 +9,7 @@
 
 const Razorpay = require("razorpay");
 const axios = require("axios");
+const crypto = require("crypto");
 const logger = require("../config/logger");
 
 const getMissingEnvVars = (keys = []) =>
@@ -53,7 +54,19 @@ const getAuthHeader = () => {
 };
 
 const RAZORPAY_PAYOUT_URL = "https://api.razorpay.com/v1";
+const RECEIPT_MAX_LENGTH = 40;
+const RECEIPT_PREFIX = "premium_";
 
+const buildPremiumReceipt = (policyId) => {
+  const rawReference = String(policyId || "").trim();
+  const safeReference = rawReference.replace(/[^a-zA-Z0-9_-]/g, "");
+  const fallbackReference = "policy";
+  const source = safeReference || fallbackReference;
+  const head = source.slice(0, 12);
+  const tail = source.length > 12 ? source.slice(-16) : "";
+  const compactReference = tail && tail !== head ? `${head}_${tail}` : head;
+  return `${RECEIPT_PREFIX}${compactReference}`.slice(0, RECEIPT_MAX_LENGTH);
+};
 /**
  * Create a Fund Account for a worker (needed before initiating payout).
  * Each worker needs a Fund Account ID tied to their bank account.
@@ -197,7 +210,7 @@ const createPremiumOrder = async (amountInPaise, policyId) => {
     const order = await getRazorpay().orders.create({
       amount: amountInPaise,
       currency: "INR",
-      receipt: `premium_${policyId}`,
+      receipt: buildPremiumReceipt(policyId),
       notes: { policy_id: policyId, type: "weekly_premium" },
     });
     return order;
@@ -213,7 +226,6 @@ const createPremiumOrder = async (amountInPaise, policyId) => {
  */
 const verifyPaymentSignature = ({ orderId, paymentId, signature }) => {
   assertEnvVars(["RAZORPAY_KEY_SECRET"]);
-  const crypto = require("crypto");
   const body = `${orderId}|${paymentId}`;
   const expectedSig = crypto
     .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
@@ -228,4 +240,5 @@ module.exports = {
   getPayoutStatus,
   createPremiumOrder,
   verifyPaymentSignature,
+  buildPremiumReceipt
 };
