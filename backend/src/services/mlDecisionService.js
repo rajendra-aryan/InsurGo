@@ -9,7 +9,7 @@ const ML_MODEL_VERSION = process.env.ML_MODEL_VERSION || "premium_model1B.pkl";
 const ACTIVE_USER_THRESHOLD_MS = 60 * 60 * 1000;
 const MIN_CLAIM_AMOUNT = 50;
 const CLAIM_AMOUNT_PER_COUNT = 50;
-const DEFAULT_TEMPERATURE_C = 30;
+const DEFAULT_TEMPERATURE_C = 0;
 const LOW_MOVEMENT_THRESHOLD_M = 200;
 const HEAVY_RAIN_THRESHOLD_MM = 60;
 const POLLUTION_THRESHOLD_AQI = 300;
@@ -45,8 +45,10 @@ const buildMlPayload = ({
   );
   const activeUser =
     user?.lastActiveAt && Date.now() - new Date(user.lastActiveAt).getTime() <= ACTIVE_USER_THRESHOLD_MS;
-  const lowMovement = toBinary(distanceMovedM < LOW_MOVEMENT_THRESHOLD_M);
-  const highRiskZone = toBinary(
+  // low_movement is a training feature that flags near-stationary claims.
+  const low_movement = toBinary(distanceMovedM < LOW_MOVEMENT_THRESHOLD_M);
+  // high_risk_zone is a training feature indicating severe rain or AQI conditions.
+  const high_risk_zone = toBinary(
     rainfallMm > HEAVY_RAIN_THRESHOLD_MM || aqi > POLLUTION_THRESHOLD_AQI
   );
 
@@ -59,8 +61,8 @@ const buildMlPayload = ({
     claim_amount: claimAmountValue,
     kyc_score: kycScore,
     ip_distance_km: ipDistance,
-    low_movement: lowMovement,
-    high_risk_zone: highRiskZone,
+    low_movement,
+    high_risk_zone,
     is_active: toBinary(activeUser || !!gpsSnapshot),
   };
 };
