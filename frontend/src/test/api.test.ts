@@ -109,6 +109,30 @@ describe("authApi.register", () => {
   });
 });
 
+describe("authApi phone OTP", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("calls POST /auth/phone-otp/send", async () => {
+    mockFetch({ success: true, data: { otpSent: true, expiresAt: new Date().toISOString() } });
+    const result = await authApi.sendPhoneOtp();
+    expect(result.data.otpSent).toBe(true);
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      expect.stringContaining("/auth/phone-otp/send"),
+      expect.objectContaining({ method: "POST" })
+    );
+  });
+
+  it("calls POST /auth/phone-otp/verify", async () => {
+    mockFetch({ success: true, data: { user: { _id: "u1", phone: "9876543210" } } });
+    const result = await authApi.verifyPhoneOtp("123456");
+    expect(result.success).toBe(true);
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      expect.stringContaining("/auth/phone-otp/verify"),
+      expect.objectContaining({ method: "POST" })
+    );
+  });
+});
+
 describe("authApi.getMe", () => {
   afterEach(() => vi.unstubAllGlobals());
 
@@ -163,6 +187,26 @@ describe("policyApi.subscribe", () => {
     const [, opts] = vi.mocked(fetch).mock.calls[0];
     expect(opts?.method).toBe("POST");
     expect(JSON.parse(opts?.body as string)).toEqual({ planId: "plan_123" });
+  });
+
+  it("throws enriched error metadata for KYC pending response", async () => {
+    mockFetch(
+      {
+        success: false,
+        message: "KYC verification pending",
+        code: "KYC_VERIFICATION_PENDING",
+        data: { kyc: { kycScore: 20 } },
+      },
+      false,
+      403
+    );
+
+    await expect(policyApi.subscribe("plan_123")).rejects.toMatchObject({
+      message: "KYC verification pending",
+      code: "KYC_VERIFICATION_PENDING",
+      status: 403,
+      data: { kyc: { kycScore: 20 } },
+    });
   });
 });
 

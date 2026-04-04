@@ -1,0 +1,6 @@
+const KYC_MINIMUM_SCORE_TO_SUBSCRIBE = parseInt(
+  process.env.KYC_MINIMUM_SCORE_TO_SUBSCRIBE || "70",
+  10
+);
+
+module.exports = { KYC_MINIMUM_SCORE_TO_SUBSCRIBE };

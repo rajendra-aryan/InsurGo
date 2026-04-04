@@ -45,4 +45,12 @@ describe("mlDecisionService.buildMlPayload", () => {
 
     expect(payload.high_risk_zone).toBe(0);
   });
+
+  it("always includes risk_score key for trigger/risk engine compatibility", () => {
+    const payload = buildMlPayload({
+      claimAmount: 100,
+    });
+
+    expect(payload).toHaveProperty("risk_score", null);
+  });
 });

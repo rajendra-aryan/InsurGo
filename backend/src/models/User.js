@@ -1,5 +1,9 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
+const crypto = require("crypto");
+
+const OTP_EXPIRATION_MS = parseInt(process.env.AUTH_PHONE_OTP_EXPIRATION_MS || "600000", 10);
+const MAX_OTP_ATTEMPTS = parseInt(process.env.AUTH_PHONE_OTP_MAX_ATTEMPTS || "5", 10);
 
 const userSchema = new mongoose.Schema(
   {
@@ -10,6 +14,11 @@ const userSchema = new mongoose.Schema(
 
     // KYC & Verification
     kycVerified: { type: Boolean, default: false },
+    phoneVerified: { type: Boolean, default: false },
+    phoneVerifiedAt: { type: Date },
+    phoneOtpHash: { type: String },
+    phoneOtpExpiresAt: { type: Date },
+    phoneOtpAttempts: { type: Number, default: 0 },
     kycScore: { type: Number, default: 0, min: 0, max: 100 }, // 0-100
     governmentIdType: { type: String, enum: ["aadhaar", "pan", "driving_license"] },
     governmentIdNumber: { type: String },
@@ -72,12 +81,44 @@ userSchema.methods.comparePassword = async function (candidatePassword) {
 // Compute KYC score dynamically
 userSchema.methods.computeKYCScore = function () {
   let score = 0;
-  if (this.governmentIdNumber) score += 30;
+  if (this.phoneVerified) score += 15;
+  if (this.governmentIdNumber) score += 25;
   if (this.platformVerified) score += 40;
-  if (this.accountAge >= 30) score += 20;
-  if (this.bankAccount?.verified) score += 10;
-  this.kycScore = score;
-  return score;
+  if (this.accountAge >= 30) score += 15;
+  if (this.bankAccount?.verified) score += 5;
+  this.kycScore = Math.min(100, score);
+  return this.kycScore;
+};
+
+userSchema.methods.issuePhoneOtp = function () {
+  const otp = String(crypto.randomInt(100000, 1000000));
+  this.phoneOtpHash = crypto.createHash("sha256").update(otp).digest("hex");
+  this.phoneOtpExpiresAt = new Date(Date.now() + OTP_EXPIRATION_MS);
+  this.phoneOtpAttempts = 0;
+  return otp;
+};
+
+userSchema.methods.verifyPhoneOtp = function (otp) {
+  if (!otp || !this.phoneOtpHash || !this.phoneOtpExpiresAt) return false;
+  if (new Date(this.phoneOtpExpiresAt).getTime() < Date.now()) return false;
+  if ((this.phoneOtpAttempts || 0) >= MAX_OTP_ATTEMPTS) return false;
+
+  const incomingHash = crypto.createHash("sha256").update(String(otp)).digest("hex");
+  const isValid = crypto.timingSafeEqual(
+    Buffer.from(incomingHash, "hex"),
+    Buffer.from(this.phoneOtpHash, "hex")
+  );
+  this.phoneOtpAttempts = (this.phoneOtpAttempts || 0) + 1;
+
+  if (isValid) {
+    this.phoneVerified = true;
+    this.phoneVerifiedAt = new Date();
+    this.phoneOtpHash = undefined;
+    this.phoneOtpExpiresAt = undefined;
+    this.phoneOtpAttempts = 0;
+  }
+
+  return isValid;
 };
 
 // Remove sensitive fields from JSON output
@@ -85,6 +126,9 @@ userSchema.methods.toJSON = function () {
   const obj = this.toObject();
   delete obj.password;
   delete obj.__v;
+  delete obj.phoneOtpHash;
+  delete obj.phoneOtpExpiresAt;
+  delete obj.phoneOtpAttempts;
   return obj;
 };
 

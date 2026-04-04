@@ -95,8 +95,13 @@ const Payment = () => {
       rzp.open();
       setLoading(false);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Could not initiate payment.";
-      setError(msg);
+      const typedErr = err as Error & { code?: string };
+      const msg = typedErr instanceof Error ? typedErr.message : "Could not initiate payment.";
+      if (typedErr?.code === "KYC_VERIFICATION_PENDING") {
+        setError("KYC verification pending. Please verify your phone OTP and complete profile details first.");
+      } else {
+        setError(msg);
+      }
       setLoading(false);
     }
   };

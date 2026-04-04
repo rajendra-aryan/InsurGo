@@ -15,6 +15,8 @@ All protected routes require: `Authorization: Bearer <token>`
 | GET | `/auth/me` | ✅ | Get my profile |
 | PATCH | `/auth/me` | ✅ | Update profile / bank account |
 | POST | `/auth/heartbeat` | ✅ | Signal worker is active (GPS ping) |
+| POST | `/auth/phone-otp/send` | ✅ | Send phone OTP for KYC verification |
+| POST | `/auth/phone-otp/verify` | ✅ | Verify phone OTP and update KYC status |
 
 ### Register — Request Body
 ```json
@@ -48,6 +50,11 @@ All protected routes require: `Authorization: Bearer <token>`
 { "lat": 19.119, "lng": 72.846, "speed": 18 }
 ```
 
+### Phone OTP Verify — Request Body
+```json
+{ "otp": "123456" }
+```
+
 ---
 
 ## 📋 Policies
@@ -65,6 +72,11 @@ All protected routes require: `Authorization: Bearer <token>`
 ```json
 { "planId": "<mongoDB_plan_id>" }
 ```
+
+If user KYC is incomplete, subscribe returns:
+- HTTP `403`
+- `code: "KYC_VERIFICATION_PENDING"`
+- `data.kyc` with current KYC status (`phoneVerified`, `kycScore`, `requiredKycScore`)
 
 ### Confirm Payment — Request Body
 ```json

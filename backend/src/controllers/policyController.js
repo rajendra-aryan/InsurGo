@@ -6,6 +6,7 @@ const { calculateDynamicPremium, estimateRiskScore } = require("../services/prem
 const { createPremiumOrder, verifyPaymentSignature } = require("../services/razorpayService");
 const { getInsuranceDecision } = require("../services/mlDecisionService");
 const logger = require("../config/logger");
+const { KYC_MINIMUM_SCORE_TO_SUBSCRIBE } = require("../constants/kyc");
 const MIN_PREMIUM = 1;
 
 /**
@@ -83,6 +84,31 @@ const subscribe = async (req, res, next) => {
   try {
     const { planId } = req.body;
     const user = req.user;
+
+    const freshUser = await User.findById(user._id);
+    if (!freshUser) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+    freshUser.computeKYCScore?.();
+    const hasMinimumKyc = !!freshUser.phoneVerified && freshUser.kycScore >= KYC_MINIMUM_SCORE_TO_SUBSCRIBE;
+    freshUser.kycVerified = hasMinimumKyc;
+    await freshUser.save({ validateBeforeSave: false });
+
+    if (!hasMinimumKyc) {
+      return res.status(403).json({
+        success: false,
+        message: "KYC verification pending. Please verify phone OTP and complete profile details before buying a plan.",
+        code: "KYC_VERIFICATION_PENDING",
+        data: {
+          kyc: {
+            kycVerified: false,
+            phoneVerified: !!freshUser.phoneVerified,
+            kycScore: freshUser.kycScore || 0,
+            requiredKycScore: KYC_MINIMUM_SCORE_TO_SUBSCRIBE,
+          },
+        },
+      });
+    }
 
     const plan = await Plan.findById(planId);
     if (!plan || !plan.isActive) {
