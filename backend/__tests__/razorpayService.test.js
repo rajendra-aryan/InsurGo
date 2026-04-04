@@ -18,6 +18,7 @@ jest.mock("../src/config/logger", () => ({
   debug: jest.fn(),
 }));
 
+const Razorpay = require("razorpay");
 const {
   createPremiumOrder,
   initiatePayout,
@@ -43,6 +44,19 @@ describe("razorpayService", () => {
     await expect(createPremiumOrder(4900, "policy_1")).rejects.toThrow(
       "Failed to create payment order: Unknown Razorpay order creation error"
     );
+  });
+
+  it("creates order with receipt length <= 40 for long policy ids", async () => {
+    const mockCreate = jest.fn().mockResolvedValue({ id: "order_1" });
+    Razorpay.mockImplementation(() => ({
+      orders: { create: mockCreate },
+    }));
+
+    await createPremiumOrder(4900, "temp_123456789012345678901234567890_verylongplanid");
+
+    const payload = mockCreate.mock.calls[0][0];
+    expect(payload.receipt.length).toBeLessThanOrEqual(40);
+    expect(payload.receipt.startsWith("premium_")).toBe(true);
   });
 
   it("throws explicit config error when payout account number is missing", async () => {
