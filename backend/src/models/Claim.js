@@ -48,6 +48,17 @@ const claimSchema = new mongoose.Schema(
       enum: ["auto", "manual"],
       default: "auto",
     },
+    mlDecision: {
+      modelVersion: { type: String },
+      provider: { type: String },
+      decisionAt: { type: Date },
+      riskScore: { type: Number },
+      predictedPremium: { type: Number },
+      claimTriggered: { type: Boolean },
+      triggerReasons: [{ type: String }],
+      payload: { type: mongoose.Schema.Types.Mixed },
+      available: { type: Boolean, default: false },
+    },
   },
   { timestamps: true }
 );

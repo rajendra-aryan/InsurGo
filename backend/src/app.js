@@ -7,6 +7,7 @@ const policyRoutes = require("./routes/policies");
 const claimRoutes = require("./routes/claims");
 const eventRoutes = require("./routes/events");
 const premiumRoutes = require("./routes/premium");
+const { getMlHealth } = require("./services/mlDecisionService");
 
 const app = express();
 
@@ -43,9 +44,16 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // ─── Health Check ─────────────────────────────────────────
-app.get("/health", (req, res) =>
-  res.json({ status: "OK", service: "InsurGo API", timestamp: new Date() })
-);
+app.get("/health", async (req, res) => {
+  const ml = await getMlHealth();
+  const status = ml.ok ? "OK" : "DEGRADED";
+  res.status(ml.ok ? 200 : 503).json({
+    status,
+    service: "InsurGo API",
+    timestamp: new Date(),
+    dependencies: { mlService: ml },
+  });
+});
 
 // ─── API Routes ───────────────────────────────────────────
 app.use("/api/auth", authRoutes);

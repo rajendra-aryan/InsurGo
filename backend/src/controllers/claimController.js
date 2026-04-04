@@ -5,6 +5,7 @@ const User = require("../models/User");
 const { evaluateFraud } = require("../services/fraudService");
 const { calculatePayout } = require("../services/premiumService");
 const { processPayout } = require("../services/triggerService");
+const { getInsuranceDecision } = require("../services/mlDecisionService");
 const logger = require("../config/logger");
 
 /**
@@ -117,6 +118,14 @@ const submitManualClaim = async (req, res, next) => {
     // Fraud detection (with GPS snapshot)
     const recentClaims = await Claim.find({ userId: user._id }).sort({ createdAt: -1 }).limit(20).lean();
     const fraudResult = evaluateFraud(user, policy, event, gpsSnapshot, recentClaims);
+    const mlDecision = await getInsuranceDecision({
+      user,
+      event,
+      gpsSnapshot,
+      claimAmount: payoutCalc.payoutAmount,
+      claimCount: recentClaims.length,
+    });
+    const triggerMismatch = mlDecision.available && mlDecision.claimTriggered === false;
 
     // Create claim
     const claim = await Claim.create({
@@ -133,6 +142,17 @@ const submitManualClaim = async (req, res, next) => {
       status: mapActionToStatus(fraudResult.action),
       gpsSnapshot: gpsSnapshot || {},
       triggerSource: "manual",
+      mlDecision: {
+        modelVersion: mlDecision.modelVersion,
+        provider: mlDecision.provider,
+        decisionAt: mlDecision.decisionAt,
+        riskScore: mlDecision.riskScore,
+        predictedPremium: mlDecision.predictedPremium,
+        claimTriggered: mlDecision.claimTriggered,
+        triggerReasons: mlDecision.triggerReasons,
+        payload: mlDecision.payload,
+        available: mlDecision.available,
+      },
     });
 
     logger.info(
@@ -140,9 +160,14 @@ const submitManualClaim = async (req, res, next) => {
     );
 
     // Auto-process if fraud score is low
-    if (fraudResult.action === "auto_approve") {
+    if (fraudResult.action === "auto_approve" && !triggerMismatch) {
       await processPayout(claim, user, policy, payoutCalc.payoutAmount);
       await claim.reload?.();
+    } else if (triggerMismatch) {
+      await Claim.findByIdAndUpdate(claim._id, {
+        status: "manual_review",
+        reviewNote: "ML trigger mismatch: claim requires manual review",
+      });
     }
 
     // Handle account lock
@@ -164,6 +189,12 @@ const submitManualClaim = async (req, res, next) => {
           score: fraudResult.fraudScore,
           action: fraudResult.action,
           flags: fraudResult.fraudFlags,
+        },
+        mlDecision: {
+          available: mlDecision.available,
+          claimTriggered: mlDecision.claimTriggered,
+          triggerReasons: mlDecision.triggerReasons,
+          modelVersion: mlDecision.modelVersion,
         },
         payout: {
           amount: payoutCalc.payoutAmount,

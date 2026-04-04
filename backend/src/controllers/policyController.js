@@ -4,6 +4,7 @@ const Claim = require("../models/Claim");
 const User = require("../models/User");
 const { calculateDynamicPremium, estimateRiskScore } = require("../services/premiumService");
 const { createPremiumOrder, verifyPaymentSignature } = require("../services/razorpayService");
+const { getInsuranceDecision } = require("../services/mlDecisionService");
 const logger = require("../config/logger");
 
 /**
@@ -34,14 +35,23 @@ const getQuote = async (req, res, next) => {
     const claimsHistory = await getClaimsHistory(user._id);
 
     const result = calculateDynamicPremium(plan, user, claimsHistory);
-    const riskScore = estimateRiskScore(user);
+    const fallbackRiskScore = estimateRiskScore(user);
+    const mlDecision = await getInsuranceDecision({
+      user,
+      claimAmount: plan.weeklyPremium,
+      claimCount: claimsHistory.claimCount,
+    });
+    const riskScore = mlDecision.riskScore ?? fallbackRiskScore;
+    const dynamicPremium = mlDecision.predictedPremium
+      ? Math.max(1, Math.round(mlDecision.predictedPremium))
+      : result.dynamicPremium;
 
     res.json({
       success: true,
       data: {
         plan: { id: plan._id, name: plan.displayName, basePremium: plan.weeklyPremium },
         quote: {
-          dynamicPremium: result.dynamicPremium,
+          dynamicPremium,
           discount: result.discount,
           discountReason: result.discountReason,
           riskScore,
@@ -50,6 +60,12 @@ const getQuote = async (req, res, next) => {
           coveragePerHour: plan.coveragePerHour,
           maxPayoutPerEvent: plan.maxPayoutPerEvent,
           maxPayoutPerWeek: plan.maxPayoutPerWeek,
+          mlDecision: {
+            available: mlDecision.available,
+            modelVersion: mlDecision.modelVersion,
+            decisionAt: mlDecision.decisionAt,
+            triggerReasons: mlDecision.triggerReasons,
+          },
         },
       },
     });
@@ -85,10 +101,20 @@ const subscribe = async (req, res, next) => {
     // Compute dynamic premium
     const claimsHistory = await getClaimsHistory(user._id);
     const premiumResult = calculateDynamicPremium(plan, user, claimsHistory);
-    const riskScore = estimateRiskScore(user);
+    const fallbackRiskScore = estimateRiskScore(user);
+    const mlDecision = await getInsuranceDecision({
+      user,
+      claimAmount: plan.weeklyPremium,
+      claimCount: claimsHistory.claimCount,
+    });
+    const riskScore = mlDecision.riskScore ?? fallbackRiskScore;
+    const dynamicPremium = mlDecision.predictedPremium
+      ? Math.max(1, Math.round(mlDecision.predictedPremium))
+      : premiumResult.dynamicPremium;
+    const premiumDiscount = Math.max(0, plan.weeklyPremium - dynamicPremium);
 
     // Create Razorpay order for premium collection
-    const amountInPaise = premiumResult.dynamicPremium * 100;
+    const amountInPaise = dynamicPremium * 100;
     const razorpayOrder = await createPremiumOrder(amountInPaise, `temp_${user._id}_${planId}`);
 
     // Create policy in pending state (premiumPaid = false until payment confirmed)
@@ -101,11 +127,22 @@ const subscribe = async (req, res, next) => {
       coveragePerHour: plan.coveragePerHour,
       maxPayoutPerEvent: plan.maxPayoutPerEvent,
       maxPayoutPerWeek: plan.maxPayoutPerWeek,
-      dynamicPremium: premiumResult.dynamicPremium,
-      premiumDiscount: premiumResult.discount,
+      dynamicPremium,
+      premiumDiscount,
       premiumDiscountReason: premiumResult.discountReason,
       riskScore,
       zoneRiskFactor: premiumResult.zoneRiskFactor,
+      mlDecision: {
+        modelVersion: mlDecision.modelVersion,
+        provider: mlDecision.provider,
+        decisionAt: mlDecision.decisionAt,
+        riskScore: mlDecision.riskScore,
+        predictedPremium: mlDecision.predictedPremium,
+        claimTriggered: mlDecision.claimTriggered,
+        triggerReasons: mlDecision.triggerReasons,
+        payload: mlDecision.payload,
+        available: mlDecision.available,
+      },
       startDate,
       endDate: new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000),
       razorpayOrderId: razorpayOrder.id,

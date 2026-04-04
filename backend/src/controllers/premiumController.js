@@ -2,6 +2,7 @@ const Plan = require("../models/Plan");
 const Policy = require("../models/Policy");
 const Claim = require("../models/Claim");
 const { calculateDynamicPremium, estimateRiskScore, ZONE_RISK_REGISTRY } = require("../services/premiumService");
+const { getInsuranceDecision, getMlHealth } = require("../services/mlDecisionService");
 
 /**
  * POST /api/premium/calculate
@@ -31,7 +32,17 @@ const calculate = async (req, res, next) => {
 
     const claimsHistory = { claimCount: claimCount || 0, lastClaimDaysAgo: 999 };
     const result = calculateDynamicPremium(plan, workerProfile, claimsHistory);
-    const riskScore = estimateRiskScore(workerProfile);
+    const fallbackRiskScore = estimateRiskScore(workerProfile);
+    const mlDecision = await getInsuranceDecision({
+      user: workerProfile,
+      claimAmount: plan.weeklyPremium,
+      claimCount: claimsHistory.claimCount,
+    });
+    const riskScore = mlDecision.riskScore ?? fallbackRiskScore;
+    const dynamicPremium = mlDecision.predictedPremium
+      ? Math.max(1, Math.round(mlDecision.predictedPremium))
+      : result.dynamicPremium;
+    const discount = Math.max(0, plan.weeklyPremium - dynamicPremium);
 
     res.json({
       success: true,
@@ -39,11 +50,17 @@ const calculate = async (req, res, next) => {
         planId: plan._id,
         planName: plan.displayName,
         basePremium: plan.weeklyPremium,
-        dynamicPremium: result.dynamicPremium,
-        discount: result.discount,
+        dynamicPremium,
+        discount,
         discountReason: result.discountReason,
         riskScore,
         breakdown: result.breakdown,
+        mlDecision: {
+          available: mlDecision.available,
+          modelVersion: mlDecision.modelVersion,
+          decisionAt: mlDecision.decisionAt,
+          triggerReasons: mlDecision.triggerReasons,
+        },
       },
     });
   } catch (error) {
@@ -78,7 +95,7 @@ const getMyRiskProfile = async (req, res, next) => {
     const user = req.user;
     const plans = await Plan.find({ isActive: true });
 
-    const riskScore = estimateRiskScore(user);
+    const fallbackRiskScore = estimateRiskScore(user);
     const zone = user.location?.zone || "default";
     const zoneRiskFactor = ZONE_RISK_REGISTRY[zone] ?? 1.0;
 
@@ -89,16 +106,25 @@ const getMyRiskProfile = async (req, res, next) => {
       status: "paid",
       createdAt: { $gte: thirtyDaysAgo },
     });
+    const mlDecision = await getInsuranceDecision({
+      user,
+      claimAmount: Math.max(1, user.weeklyAvgIncome || 5000),
+      claimCount: recentClaims,
+    });
+    const riskScore = mlDecision.riskScore ?? fallbackRiskScore;
 
     // Compute premium for all plans
     const premiumsByPlan = plans.map((plan) => {
       const result = calculateDynamicPremium(plan, user, { claimCount: recentClaims });
+      const dynamicPremium = mlDecision.predictedPremium
+        ? Math.max(1, Math.round(mlDecision.predictedPremium))
+        : result.dynamicPremium;
       return {
         planId: plan._id,
         planName: plan.displayName,
         basePremium: plan.weeklyPremium,
-        dynamicPremium: result.dynamicPremium,
-        discount: result.discount,
+        dynamicPremium,
+        discount: Math.max(0, plan.weeklyPremium - dynamicPremium),
       };
     });
 
@@ -112,6 +138,12 @@ const getMyRiskProfile = async (req, res, next) => {
         kycScore: user.kycScore,
         recentClaims30Days: recentClaims,
         premiumsByPlan,
+        mlDecision: {
+          available: mlDecision.available,
+          modelVersion: mlDecision.modelVersion,
+          decisionAt: mlDecision.decisionAt,
+          triggerReasons: mlDecision.triggerReasons,
+        },
       },
     });
   } catch (error) {
@@ -119,4 +151,9 @@ const getMyRiskProfile = async (req, res, next) => {
   }
 };
 
-module.exports = { calculate, getZoneRiskMap, getMyRiskProfile };
+const getMlStatus = async (req, res) => {
+  const health = await getMlHealth();
+  res.status(health.ok ? 200 : 503).json({ success: health.ok, data: health });
+};
+
+module.exports = { calculate, getZoneRiskMap, getMyRiskProfile, getMlStatus };
