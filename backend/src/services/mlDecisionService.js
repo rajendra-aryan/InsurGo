@@ -3,10 +3,12 @@ const logger = require("../config/logger");
 
 const ML_SERVICE_URL =
   process.env.ML_SERVICE_URL || "http://localhost:8000/insurance-decision";
-const ML_HEALTH_URL =
-  process.env.ML_HEALTH_URL || ML_SERVICE_URL.replace("/insurance-decision", "/health");
+const ML_HEALTH_URL = process.env.ML_HEALTH_URL || new URL("/health", ML_SERVICE_URL).toString();
 const ML_TIMEOUT_MS = parseInt(process.env.ML_SERVICE_TIMEOUT_MS || "4000", 10);
 const ML_MODEL_VERSION = process.env.ML_MODEL_VERSION || "premium_model1B.pkl";
+const ACTIVE_USER_THRESHOLD_MS = 60 * 60 * 1000;
+const MIN_CLAIM_AMOUNT = 50;
+const CLAIM_AMOUNT_PER_COUNT = 50;
 
 const toNumber = (value, fallback = 0) => {
   const parsed = Number(value);
@@ -27,12 +29,15 @@ const buildMlPayload = ({
   const aqiFromEvent = event?.rawData?.aqiValue ?? (event?.type === "aqi" ? event?.triggerValue : 0);
   const distanceMovedM = toNumber(gpsSnapshot?.distanceMovedM, gpsSnapshot ? 150 : 500);
   const activeUser =
-    user?.lastActiveAt && Date.now() - new Date(user.lastActiveAt).getTime() <= 60 * 60 * 1000;
+    user?.lastActiveAt && Date.now() - new Date(user.lastActiveAt).getTime() <= ACTIVE_USER_THRESHOLD_MS;
 
   return {
     rainfall_mm: toNumber(rainfallFromEvent, 0),
     aqi: toNumber(aqiFromEvent, 0),
-    claim_amount: toNumber(claimAmount, Math.max(50, claimCount * 50)),
+    claim_amount: toNumber(
+      claimAmount,
+      Math.max(MIN_CLAIM_AMOUNT, claimCount * CLAIM_AMOUNT_PER_COUNT)
+    ),
     ip_distance_km: toNumber(ipDistanceKm, 0),
     distance_moved_m: distanceMovedM,
     is_active: toBinary(activeUser || !!gpsSnapshot),

@@ -10,6 +10,16 @@ app = FastAPI()
 model = joblib.load("model/premium_model1B.pkl")
 
 
+@app.get("/health")
+def health():
+    return {
+        "status": "OK",
+        "service": "insurgo-ml",
+        "model_loaded": model is not None,
+        "model_version": "premium_model1B.pkl",
+    }
+
+
 @app.post("/insurance-decision")
 def insurance_decision(data: dict):
 

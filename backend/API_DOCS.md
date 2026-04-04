@@ -139,6 +139,7 @@ Supported types: `rain`, `flood`, `aqi`, `curfew`
 | POST | `/premium/calculate` | ❌ | Calculate dynamic premium (preview) |
 | GET | `/premium/zone-risk` | ❌ | Zone risk factors across Mumbai |
 | GET | `/premium/my-risk-profile` | ✅ | My risk score + premiums across all plans |
+| GET | `/premium/ml-status` | ❌ | ML service health status |
 
 ### Calculate — Request Body
 ```json
@@ -150,6 +151,11 @@ Supported types: `rain`, `flood`, `aqi`, `curfew`
   "claimCount": 0
 }
 ```
+
+### ML-Aware Fields in Responses
+- `quote.mlDecision`: availability, model version, decision timestamp, trigger reasons
+- `policy.mlDecision`: persisted decision payload at subscription time
+- `claim.mlDecision`: persisted ML decision used during claim orchestration
 
 ---
 

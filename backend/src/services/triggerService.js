@@ -23,6 +23,7 @@ const { getCityAQI } = require("./aqiService");
 const { calculatePayout } = require("./premiumService");
 const { evaluateFraud } = require("./fraudService");
 const { createFundAccount, initiatePayout } = require("./razorpayService");
+const { getInsuranceDecision } = require("./mlDecisionService");
 
 const CITIES = ["Mumbai"]; // Extend to support multiple cities
 
@@ -206,6 +207,13 @@ const processSingleWorkerClaim = async (policy, event) => {
 
     // Run fraud detection
     const fraudResult = evaluateFraud(user, policy, event, null, recentClaims);
+    const mlDecision = await getInsuranceDecision({
+      user,
+      event,
+      claimAmount: payoutCalc.payoutAmount,
+      claimCount: recentClaims.length,
+    });
+    const triggerMismatch = mlDecision.available && mlDecision.claimTriggered === false;
 
     // Create claim record
     const claim = await Claim.create({
@@ -221,6 +229,17 @@ const processSingleWorkerClaim = async (policy, event) => {
       fraudDetails: fraudResult.details,
       status: mapActionToStatus(fraudResult.action),
       triggerSource: "auto",
+      mlDecision: {
+        modelVersion: mlDecision.modelVersion,
+        provider: mlDecision.provider,
+        decisionAt: mlDecision.decisionAt,
+        riskScore: mlDecision.riskScore,
+        predictedPremium: mlDecision.predictedPremium,
+        claimTriggered: mlDecision.claimTriggered,
+        triggerReasons: mlDecision.triggerReasons,
+        payload: mlDecision.payload,
+        available: mlDecision.available,
+      },
     });
 
     logger.info(
@@ -228,8 +247,13 @@ const processSingleWorkerClaim = async (policy, event) => {
     );
 
     // Auto-approve and pay if fraud score is low
-    if (fraudResult.action === "auto_approve") {
+    if (fraudResult.action === "auto_approve" && !triggerMismatch) {
       await processPayout(claim, user, policy, payoutCalc.payoutAmount);
+    } else if (triggerMismatch) {
+      await Claim.findByIdAndUpdate(claim._id, {
+        status: "manual_review",
+        reviewNote: "ML trigger mismatch: claim requires manual review",
+      });
     } else if (fraudResult.action === "lock_account") {
       await User.findByIdAndUpdate(user._id, {
         isBlocked: true,

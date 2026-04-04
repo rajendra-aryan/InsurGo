@@ -23,6 +23,7 @@ const Payment = () => {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [quotedPremium, setQuotedPremium] = useState<number | null>(null);
   const razorpayLoaded = useRef(false);
 
   // Load Razorpay SDK once
@@ -34,6 +35,14 @@ const Payment = () => {
     document.body.appendChild(script);
     razorpayLoaded.current = true;
   }, []);
+
+  useEffect(() => {
+    if (!planId) return;
+    policyApi
+      .getQuote(planId)
+      .then(({ data }) => setQuotedPremium(data.quote.dynamicPremium))
+      .catch(() => setQuotedPremium(null));
+  }, [planId]);
 
   const handlePay = async () => {
     if (!planId) {
@@ -122,11 +131,11 @@ const Payment = () => {
                   <p className="font-display font-bold text-primary text-lg">{planName}</p>
                   <p className="text-sm text-muted-foreground">Weekly protection plan</p>
                 </div>
-                <div className="text-right">
-                  <p className="text-3xl font-display font-bold text-foreground">₹{amount}</p>
-                  <p className="text-sm text-muted-foreground">/week</p>
-                </div>
-              </div>
+                    <div className="text-right">
+                      <p className="text-3xl font-display font-bold text-foreground">₹{quotedPremium ?? amount}</p>
+                      <p className="text-sm text-muted-foreground">/week</p>
+                    </div>
+                  </div>
             </div>
 
             {/* What's included */}

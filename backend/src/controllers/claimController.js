@@ -182,12 +182,12 @@ const submitManualClaim = async (req, res, next) => {
 
     res.status(201).json({
       success: true,
-      message: getClaimMessage(fraudResult.action),
+      message: getClaimMessage(triggerMismatch ? "manual_review" : fraudResult.action),
       data: {
         claim: refreshedClaim,
         fraud: {
           score: fraudResult.fraudScore,
-          action: fraudResult.action,
+          action: triggerMismatch ? "manual_review" : fraudResult.action,
           flags: fraudResult.fraudFlags,
         },
         mlDecision: {

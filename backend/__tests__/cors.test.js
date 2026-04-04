@@ -34,6 +34,9 @@ jest.mock("../src/config/logger", () => ({
   warn: jest.fn(),
   debug: jest.fn(),
 }));
+jest.mock("../src/services/mlDecisionService", () => ({
+  getMlHealth: jest.fn().mockResolvedValue({ ok: true, status: 200 }),
+}));
 
 const request = require("supertest");
 

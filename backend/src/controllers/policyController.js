@@ -6,6 +6,7 @@ const { calculateDynamicPremium, estimateRiskScore } = require("../services/prem
 const { createPremiumOrder, verifyPaymentSignature } = require("../services/razorpayService");
 const { getInsuranceDecision } = require("../services/mlDecisionService");
 const logger = require("../config/logger");
+const MIN_PREMIUM = 1;
 
 /**
  * GET /api/policies/plans
@@ -43,7 +44,7 @@ const getQuote = async (req, res, next) => {
     });
     const riskScore = mlDecision.riskScore ?? fallbackRiskScore;
     const dynamicPremium = mlDecision.predictedPremium
-      ? Math.max(1, Math.round(mlDecision.predictedPremium))
+      ? Math.max(MIN_PREMIUM, Math.round(mlDecision.predictedPremium))
       : result.dynamicPremium;
 
     res.json({
@@ -109,7 +110,7 @@ const subscribe = async (req, res, next) => {
     });
     const riskScore = mlDecision.riskScore ?? fallbackRiskScore;
     const dynamicPremium = mlDecision.predictedPremium
-      ? Math.max(1, Math.round(mlDecision.predictedPremium))
+      ? Math.max(MIN_PREMIUM, Math.round(mlDecision.predictedPremium))
       : premiumResult.dynamicPremium;
     const premiumDiscount = Math.max(0, plan.weeklyPremium - dynamicPremium);
 

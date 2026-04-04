@@ -3,6 +3,7 @@ const Policy = require("../models/Policy");
 const Claim = require("../models/Claim");
 const { calculateDynamicPremium, estimateRiskScore, ZONE_RISK_REGISTRY } = require("../services/premiumService");
 const { getInsuranceDecision, getMlHealth } = require("../services/mlDecisionService");
+const MIN_PREMIUM = 1;
 
 /**
  * POST /api/premium/calculate
@@ -40,7 +41,7 @@ const calculate = async (req, res, next) => {
     });
     const riskScore = mlDecision.riskScore ?? fallbackRiskScore;
     const dynamicPremium = mlDecision.predictedPremium
-      ? Math.max(1, Math.round(mlDecision.predictedPremium))
+      ? Math.max(MIN_PREMIUM, Math.round(mlDecision.predictedPremium))
       : result.dynamicPremium;
     const discount = Math.max(0, plan.weeklyPremium - dynamicPremium);
 
@@ -116,9 +117,9 @@ const getMyRiskProfile = async (req, res, next) => {
     // Compute premium for all plans
     const premiumsByPlan = plans.map((plan) => {
       const result = calculateDynamicPremium(plan, user, { claimCount: recentClaims });
-      const dynamicPremium = mlDecision.predictedPremium
-        ? Math.max(1, Math.round(mlDecision.predictedPremium))
-        : result.dynamicPremium;
+    const dynamicPremium = mlDecision.predictedPremium
+      ? Math.max(MIN_PREMIUM, Math.round(mlDecision.predictedPremium))
+      : result.dynamicPremium;
       return {
         planId: plan._id,
         planName: plan.displayName,

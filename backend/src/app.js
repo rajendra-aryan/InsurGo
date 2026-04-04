@@ -47,7 +47,7 @@ app.use(express.urlencoded({ extended: true }));
 app.get("/health", async (req, res) => {
   const ml = await getMlHealth();
   const status = ml.ok ? "OK" : "DEGRADED";
-  res.status(ml.ok ? 200 : 503).json({
+  res.status(200).json({
     status,
     service: "InsurGo API",
     timestamp: new Date(),
