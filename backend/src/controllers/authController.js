@@ -6,16 +6,6 @@ const logger = require("../config/logger");
 const signToken = (id) =>
   jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || "7d" });
 
-const sanitizeUserOtpState = (user) => {
-  if (!user) return;
-  if (typeof user.toObject === "function") {
-    return;
-  }
-  user.phoneOtpHash = undefined;
-  user.phoneOtpExpiresAt = undefined;
-  user.phoneOtpAttempts = undefined;
-};
-
 /**
  * POST /api/auth/register
  * Onboard a new delivery worker
@@ -63,7 +53,6 @@ const register = async (req, res, next) => {
     }
 
     await user.save();
-    sanitizeUserOtpState(user);
 
     const token = signToken(user._id);
 
@@ -161,7 +150,6 @@ const updateMe = async (req, res, next) => {
     user.computeKYCScore();
     user.kycVerified = user.phoneVerified && user.kycScore >= 70;
     await user.save({ validateBeforeSave: false });
-    sanitizeUserOtpState(user);
 
     res.json({ success: true, data: { user } });
   } catch (error) {
@@ -249,7 +237,6 @@ const verifyPhoneOtp = async (req, res, next) => {
     user.computeKYCScore();
     user.kycVerified = user.phoneVerified && user.kycScore >= 70;
     await user.save({ validateBeforeSave: false });
-    sanitizeUserOtpState(user);
 
     res.json({
       success: true,

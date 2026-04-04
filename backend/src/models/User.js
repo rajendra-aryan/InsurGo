@@ -88,7 +88,7 @@ userSchema.methods.computeKYCScore = function () {
 };
 
 userSchema.methods.issuePhoneOtp = function () {
-  const otp = `${Math.floor(100000 + Math.random() * 900000)}`;
+  const otp = String(Math.floor(100000 + Math.random() * 900000));
   this.phoneOtpHash = crypto.createHash("sha256").update(otp).digest("hex");
   this.phoneOtpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
   this.phoneOtpAttempts = 0;

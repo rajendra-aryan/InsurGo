@@ -85,7 +85,7 @@ const subscribe = async (req, res, next) => {
     const { planId } = req.body;
     const user = req.user;
 
-    const freshUser = await User.findById(user._id).select("-password");
+    const freshUser = await User.findById(user._id);
     if (!freshUser) {
       return res.status(404).json({ success: false, message: "User not found" });
     }

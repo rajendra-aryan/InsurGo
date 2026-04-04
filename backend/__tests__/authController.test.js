@@ -54,11 +54,7 @@ const makeUserDoc = (overrides = {}) => {
     lastActiveAt: null,
     ...overrides,
   };
-  if (doc.computeKYCScore && !doc.computeKYCScore.mock?.implementation) {
-    doc.computeKYCScore = jest.fn(() => doc.kycScore);
-  } else {
-    doc.computeKYCScore = jest.fn(() => doc.kycScore);
-  }
+  doc.computeKYCScore = jest.fn(() => doc.kycScore);
   return doc;
 };
 
