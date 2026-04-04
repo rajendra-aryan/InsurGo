@@ -2,6 +2,7 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const { estimateRiskScore } = require("../services/premiumService");
 const logger = require("../config/logger");
+const { KYC_MINIMUM_SCORE_TO_SUBSCRIBE } = require("../constants/kyc");
 
 const signToken = (id) =>
   jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || "7d" });
@@ -148,7 +149,7 @@ const updateMe = async (req, res, next) => {
 
     // Recompute KYC score after profile update
     user.computeKYCScore();
-    user.kycVerified = user.phoneVerified && user.kycScore >= 70;
+    user.kycVerified = user.phoneVerified && user.kycScore >= KYC_MINIMUM_SCORE_TO_SUBSCRIBE;
     await user.save({ validateBeforeSave: false });
 
     res.json({ success: true, data: { user } });
@@ -235,7 +236,7 @@ const verifyPhoneOtp = async (req, res, next) => {
     }
 
     user.computeKYCScore();
-    user.kycVerified = user.phoneVerified && user.kycScore >= 70;
+    user.kycVerified = user.phoneVerified && user.kycScore >= KYC_MINIMUM_SCORE_TO_SUBSCRIBE;
     await user.save({ validateBeforeSave: false });
 
     res.json({

@@ -158,7 +158,10 @@ const Profile = () => {
                   <div>
                     <p className="text-xs text-muted-foreground">KYC Score</p>
                     <p className="text-sm font-medium text-foreground">
-                      {user.kycScore}/100 {user.phoneVerified ? "• Phone Verified" : "• Phone Not Verified"}
+                      {user.kycScore}/100
+                      <span className="ml-2" aria-label={user.phoneVerified ? "Phone verified" : "Phone not verified"}>
+                        {user.phoneVerified ? "Phone Verified" : "Phone Not Verified"}
+                      </span>
                     </p>
                   </div>
                 </div>

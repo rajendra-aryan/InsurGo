@@ -6,8 +6,8 @@ const { calculateDynamicPremium, estimateRiskScore } = require("../services/prem
 const { createPremiumOrder, verifyPaymentSignature } = require("../services/razorpayService");
 const { getInsuranceDecision } = require("../services/mlDecisionService");
 const logger = require("../config/logger");
+const { KYC_MINIMUM_SCORE_TO_SUBSCRIBE } = require("../constants/kyc");
 const MIN_PREMIUM = 1;
-const KYC_MINIMUM_SCORE_TO_SUBSCRIBE = 70;
 
 /**
  * GET /api/policies/plans
