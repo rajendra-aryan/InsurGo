@@ -6,6 +6,13 @@ const logger = require("../config/logger");
 const signToken = (id) =>
   jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || "7d" });
 
+const sanitizeUserOtpState = (user) => {
+  if (!user) return;
+  user.phoneOtpHash = undefined;
+  user.phoneOtpExpiresAt = undefined;
+  user.phoneOtpAttempts = undefined;
+};
+
 /**
  * POST /api/auth/register
  * Onboard a new delivery worker
@@ -51,6 +58,7 @@ const register = async (req, res, next) => {
     }
 
     await user.save();
+    sanitizeUserOtpState(user);
 
     const token = signToken(user._id);
 
@@ -58,7 +66,7 @@ const register = async (req, res, next) => {
 
     res.status(201).json({
       success: true,
-      message: "Registration successful! Welcome to InsurGo.",
+      message: "Registration successful. Verify your phone to complete KYC and buy plans.",
       token,
       data: { user },
     });
@@ -138,7 +146,9 @@ const updateMe = async (req, res, next) => {
 
     // Recompute KYC score after profile update
     user.computeKYCScore();
+    user.kycVerified = user.phoneVerified && user.kycScore >= 70;
     await user.save({ validateBeforeSave: false });
+    sanitizeUserOtpState(user);
 
     res.json({ success: true, data: { user } });
   } catch (error) {
@@ -169,4 +179,73 @@ const heartbeat = async (req, res, next) => {
   }
 };
 
-module.exports = { register, login, getMe, updateMe, heartbeat };
+/**
+ * POST /api/auth/phone-otp/send
+ * Issue OTP to verify user phone (simulated delivery for now).
+ */
+const sendPhoneOtp = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+
+    const otp = user.issuePhoneOtp();
+    await user.save({ validateBeforeSave: false });
+
+    logger.info(`Phone OTP issued for user ${user._id}`);
+
+    const response = {
+      success: true,
+      message: "OTP sent successfully to your phone.",
+      data: {
+        otpSent: true,
+        expiresAt: user.phoneOtpExpiresAt,
+      },
+    };
+
+    if (process.env.NODE_ENV !== "production") {
+      response.data.devOtp = otp;
+    }
+
+    res.json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/auth/phone-otp/verify
+ * Verify OTP and mark phone/KYC status.
+ */
+const verifyPhoneOtp = async (req, res, next) => {
+  try {
+    const { otp } = req.body || {};
+    if (!otp) return res.status(400).json({ success: false, message: "OTP is required" });
+
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+
+    const isValid = user.verifyPhoneOtp(otp);
+    if (!isValid) {
+      await user.save({ validateBeforeSave: false });
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or expired OTP. Please request a new OTP.",
+      });
+    }
+
+    user.computeKYCScore();
+    user.kycVerified = user.phoneVerified && user.kycScore >= 70;
+    await user.save({ validateBeforeSave: false });
+    sanitizeUserOtpState(user);
+
+    res.json({
+      success: true,
+      message: "Phone verification complete. KYC updated.",
+      data: { user },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { register, login, getMe, updateMe, heartbeat, sendPhoneOtp, verifyPhoneOtp };
