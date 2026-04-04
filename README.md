@@ -666,9 +666,14 @@ ML request (backend → FastAPI):
 {
   "rainfall_mm": 65,
   "aqi": 320,
-  "claim_amount": 360,
-  "ip_distance_km": 3,
+  "temperature": 31,
+  "speed_kmh": 18,
   "distance_moved_m": 150,
+  "claim_amount": 360,
+  "kyc_score": 80,
+  "ip_distance_km": 3,
+  "low_movement": 1,
+  "high_risk_zone": 1,
   "is_active": 1
 }
 ```
