@@ -21,6 +21,19 @@ jest.mock("../src/services/razorpayService", () => ({
   createPremiumOrder: jest.fn().mockResolvedValue({ id: "order_test_123" }),
   verifyPaymentSignature: jest.fn().mockReturnValue(true),
 }));
+jest.mock("../src/services/mlDecisionService", () => ({
+  getInsuranceDecision: jest.fn().mockResolvedValue({
+    available: true,
+    provider: "fastapi",
+    modelVersion: "premium_model1B.pkl",
+    decisionAt: new Date(),
+    riskScore: 0.31,
+    predictedPremium: 47,
+    claimTriggered: true,
+    triggerReasons: ["HEAVY_RAIN"],
+    payload: {},
+  }),
+}));
 jest.mock("../src/config/logger", () => ({
   info: jest.fn(),
   error: jest.fn(),
@@ -133,6 +146,7 @@ describe("policyController.getQuote", () => {
     const body = res.json.mock.calls[0][0];
     expect(body.success).toBe(true);
     expect(body.data.quote).toHaveProperty("dynamicPremium", 47);
+    expect(body.data.quote).toHaveProperty("mlDecision");
   });
 
   it("returns 404 when plan does not exist", async () => {
@@ -191,7 +205,7 @@ describe("policyController.subscribe", () => {
     Claim.find.mockReturnValue({ lean: jest.fn().mockResolvedValue([]) });
     Claim.findOne.mockReturnValue({ sort: jest.fn().mockReturnValue({ lean: jest.fn().mockResolvedValue(null) }) });
 
-    const createdPolicy = makePolicyDoc({ premiumPaid: false });
+    const createdPolicy = makePolicyDoc({ premiumPaid: false, mlDecision: { available: true } });
     Policy.create.mockResolvedValue(createdPolicy);
 
     process.env.RAZORPAY_KEY_ID = "rzp_test_123";
@@ -206,6 +220,7 @@ describe("policyController.subscribe", () => {
     const body = res.json.mock.calls[0][0];
     expect(body.success).toBe(true);
     expect(body.data.payment.orderId).toBe("order_test_123");
+    expect(body.data.policy).toHaveProperty("mlDecision");
   });
 });
 

@@ -6,7 +6,7 @@ import {
   ShieldCheck, Wallet, Clock, CheckCircle, AlertTriangle,
   TrendingUp, ArrowRight, Loader2, CloudRain, Wind, AlertCircle, RefreshCw
 } from "lucide-react";
-import { claimApi, policyApi, eventApi, type Claim, type Policy, type ClaimStats, type ActiveEvent } from "@/lib/api";
+import { claimApi, policyApi, eventApi, premiumApi, type Claim, type Policy, type ClaimStats, type ActiveEvent } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 
 const statusIcon = (status: Claim["status"]) => {
@@ -28,6 +28,7 @@ const Dashboard = () => {
   const [events, setEvents] = useState<ActiveEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [liveChecking, setLiveChecking] = useState(false);
+  const [mlOnline, setMlOnline] = useState<boolean | null>(null);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -43,6 +44,12 @@ const Dashboard = () => {
       if (statsRes.status === "fulfilled") setStats(statsRes.value.data);
       if (policiesRes.status === "fulfilled") setPolicy(policiesRes.value.data.active);
       if (eventsRes.status === "fulfilled") setEvents(eventsRes.value.data.events);
+      try {
+        const ml = await premiumApi.getMlStatus();
+        setMlOnline(ml.data.ok);
+      } catch {
+        setMlOnline(false);
+      }
     } finally {
       setLoading(false);
     }
@@ -84,6 +91,9 @@ const Dashboard = () => {
             <div>
               <h1 className="text-3xl font-display font-bold mb-1">Welcome back, {firstName} 👋</h1>
               <p className="text-muted-foreground">Your protection overview for this week.</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                ML pipeline: {mlOnline === null ? "checking..." : mlOnline ? "online" : "degraded"}
+              </p>
             </div>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={checkLive} disabled={liveChecking}>
@@ -174,6 +184,11 @@ const Dashboard = () => {
                         <div className="text-right">
                           <p className="text-sm font-bold text-accent">₹{c.payoutAmount}</p>
                           <p className="text-xs text-muted-foreground capitalize">{c.status}</p>
+                          {c.mlDecision?.triggerReasons?.length ? (
+                            <p className="text-xs text-muted-foreground">
+                              ML: {c.mlDecision.triggerReasons.join(", ")}
+                            </p>
+                          ) : null}
                         </div>
                       </div>
                     ))}
@@ -193,8 +208,13 @@ const Dashboard = () => {
                         <p className="text-sm text-muted-foreground">Active</p>
                         <p className="text-xl font-display font-bold text-primary capitalize">{policy.planName}</p>
                         <p className="text-sm text-muted-foreground">
-                          ₹{policy.weeklyPremium}/week • Expires {new Date(policy.endDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                          ₹{policy.dynamicPremium ?? policy.weeklyPremium}/week • Expires {new Date(policy.endDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
                         </p>
+                        {policy.mlDecision?.modelVersion ? (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Model: {policy.mlDecision.modelVersion}
+                          </p>
+                        ) : null}
                       </div>
                       <Link to="/pricing">
                         <Button variant="outline" className="w-full justify-between" size="sm">

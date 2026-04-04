@@ -92,6 +92,16 @@ export interface Policy {
   totalPayoutThisPeriod: number;
   claimsThisPeriod: number;
   razorpayOrderId?: string;
+  mlDecision?: {
+    modelVersion?: string;
+    provider?: string;
+    decisionAt?: string;
+    riskScore?: number;
+    predictedPremium?: number;
+    claimTriggered?: boolean;
+    triggerReasons?: string[];
+    available?: boolean;
+  };
 }
 
 export interface Claim {
@@ -103,6 +113,13 @@ export interface Claim {
   createdAt: string;
   eventId?: { type: string; city: string; severity: string; detectedAt: string };
   policyId?: { planName: string; coveragePerHour: number };
+  mlDecision?: {
+    modelVersion?: string;
+    decisionAt?: string;
+    claimTriggered?: boolean;
+    triggerReasons?: string[];
+    available?: boolean;
+  };
 }
 
 export interface ClaimStats {
@@ -162,7 +179,18 @@ export const policyApi = {
   getPlans: () => get<{ success: boolean; data: { plans: Plan[] } }>("/policies/plans"),
 
   getQuote: (planId: string) =>
-    get<{ success: boolean; data: { plan: Plan; quote: { dynamicPremium: number; discount: number; breakdown: Record<string, unknown> } } }>(
+    get<{
+      success: boolean;
+      data: {
+        plan: Plan;
+        quote: {
+          dynamicPremium: number;
+          discount: number;
+          breakdown: Record<string, unknown>;
+          mlDecision?: { available: boolean; modelVersion?: string; decisionAt?: string; triggerReasons?: string[] };
+        };
+      };
+    }>(
       `/policies/plans/${planId}/quote`
     ),
 
@@ -200,7 +228,16 @@ export const claimApi = {
     get<{ success: boolean; data: ClaimStats }>("/claims/stats"),
 
   submitManual: (eventId: string, gpsSnapshot?: { lat: number; lng: number; speed?: number }) =>
-    post<{ success: boolean; message: string; data: { claim: Claim; fraud: unknown; payout: unknown } }>(
+    post<{
+      success: boolean;
+      message: string;
+      data: {
+        claim: Claim;
+        fraud: unknown;
+        payout: unknown;
+        mlDecision?: { available: boolean; claimTriggered?: boolean; triggerReasons?: string[]; modelVersion?: string };
+      };
+    }>(
       "/claims/manual",
       { eventId, gpsSnapshot }
     ),
@@ -230,6 +267,7 @@ export const premiumApi = {
         kycScore: number;
         recentClaims30Days: number;
         premiumsByPlan: Array<{ planId: string; planName: string; basePremium: number; dynamicPremium: number; discount: number }>;
+        mlDecision?: { available: boolean; modelVersion?: string; decisionAt?: string; triggerReasons?: string[] };
       };
     }>("/premium/my-risk-profile"),
 
@@ -237,4 +275,7 @@ export const premiumApi = {
     get<{ success: boolean; data: { zones: Array<{ zone: string; riskFactor: number; riskLevel: string }> } }>(
       "/premium/zone-risk"
     ),
+
+  getMlStatus: () =>
+    get<{ success: boolean; data: { ok: boolean; status: number; url: string } }>("/premium/ml-status"),
 };

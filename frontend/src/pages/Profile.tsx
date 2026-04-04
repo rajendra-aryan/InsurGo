@@ -141,8 +141,11 @@ const Profile = () => {
                   <div>
                     <p className="font-display font-bold text-primary capitalize">{policy.planName}</p>
                     <p className="text-sm text-muted-foreground">
-                      ₹{policy.weeklyPremium}/week • Expires {new Date(policy.endDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                      ₹{policy.dynamicPremium ?? policy.weeklyPremium}/week • Expires {new Date(policy.endDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
                     </p>
+                    {policy.mlDecision?.modelVersion ? (
+                      <p className="text-xs text-muted-foreground mt-1">Model: {policy.mlDecision.modelVersion}</p>
+                    ) : null}
                   </div>
                   <ShieldCheck className="h-8 w-8 text-primary" />
                 </div>

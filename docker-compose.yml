@@ -1,0 +1,67 @@
+version: "3.9"
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: insurgo-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  ml:
+    build:
+      context: .
+      dockerfile: Dockerfile.ml
+    container_name: insurgo-ml
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    container_name: insurgo-backend
+    env_file:
+      - ./backend/.env.pipeline.example
+    environment:
+      MONGODB_URI: mongodb://mongo:27017/insurgo
+      ML_SERVICE_URL: http://ml:8000/insurance-decision
+      ML_HEALTH_URL: http://ml:8000/health
+      FRONTEND_URL: http://localhost:5173
+    depends_on:
+      mongo:
+        condition: service_healthy
+      ml:
+        condition: service_healthy
+    ports:
+      - "5000:5000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: insurgo-frontend
+    environment:
+      VITE_API_URL: http://localhost:5000/api
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "5173:5173"
+
+volumes:
+  mongo_data:

@@ -28,6 +28,17 @@ const policySchema = new mongoose.Schema(
     // Risk profile at time of subscription
     riskScore: { type: Number, default: 0.5, min: 0, max: 1 },
     zoneRiskFactor: { type: Number, default: 1.0 },
+    mlDecision: {
+      modelVersion: { type: String },
+      provider: { type: String },
+      decisionAt: { type: Date },
+      riskScore: { type: Number },
+      predictedPremium: { type: Number },
+      claimTriggered: { type: Boolean },
+      triggerReasons: [{ type: String }],
+      payload: { type: mongoose.Schema.Types.Mixed },
+      available: { type: Boolean, default: false },
+    },
 
     // Duration
     startDate: { type: Date, required: true, default: Date.now },

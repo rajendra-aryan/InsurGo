@@ -610,6 +610,82 @@ InsurGo/
 
 ---
 
+## 🔌 Production Pipeline Contract
+
+Single client-facing flow:
+
+`Frontend (React) → Backend (Node /api/*) → ML (FastAPI /insurance-decision) + MongoDB`
+
+- Frontend only talks to Node backend.
+- Backend orchestrates premium + claim decisions by combining DB state, business rules, and ML output.
+- ML outputs are persisted in policy/claim records for audit and dashboard visibility.
+
+---
+
+## 🚀 Pipeline Runbook (Local + Docker)
+
+### Environment setup
+
+- Backend: copy `./backend/.env.pipeline.example` to `.env` and fill API keys.
+- Frontend: copy `./frontend/.env.example` to `.env`.
+
+### Local run (separate terminals)
+
+1. ML service
+   - `cd .`
+   - `pip install -r requirements.txt`
+   - `uvicorn main:app --host 0.0.0.0 --port 8000`
+2. Backend
+   - `cd backend`
+   - `npm install`
+   - `npm run dev`
+3. Frontend
+   - `cd frontend`
+   - `npm install`
+   - `npm run dev`
+
+### One-command Docker run
+
+- `cd .`
+- `docker compose up --build`
+
+Services started:
+- Frontend: `http://localhost:5173`
+- Backend API: `http://localhost:5000/api`
+- Backend health: `http://localhost:5000/health`
+- ML health: `http://localhost:8000/health`
+- MongoDB: `mongodb://localhost:27017`
+
+---
+
+## 🧾 ML Decision Example Contract
+
+ML request (backend → FastAPI):
+
+```json
+{
+  "rainfall_mm": 65,
+  "aqi": 320,
+  "claim_amount": 360,
+  "ip_distance_km": 3,
+  "distance_moved_m": 150,
+  "is_active": 1
+}
+```
+
+ML response:
+
+```json
+{
+  "risk_score": 0.73,
+  "predicted_premium": 42.5,
+  "claim_triggered": true,
+  "reasons": ["HEAVY_RAIN", "POLLUTION"]
+}
+```
+
+---
+
 ##  About Us
 
 **We are Team CounterProductive!**

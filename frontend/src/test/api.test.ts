@@ -12,6 +12,7 @@ import {
   policyApi,
   claimApi,
   eventApi,
+  premiumApi,
 } from "@/lib/api";
 
 // ─── localStorage mock ────────────────────────────────────
@@ -154,7 +155,7 @@ describe("policyApi.subscribe", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("calls POST /policies/subscribe with planId", async () => {
-    mockFetch({ success: true, data: { policy: {}, payment: { orderId: "ord_1" } } });
+    mockFetch({ success: true, data: { policy: { mlDecision: { available: true } }, payment: { orderId: "ord_1" } } });
 
     const result = await policyApi.subscribe("plan_123");
 
@@ -239,5 +240,17 @@ describe("eventApi.liveCheck", () => {
 
     const [url] = vi.mocked(fetch).mock.calls[0];
     expect(url).toContain("city=Mumbai");
+  });
+});
+
+describe("premiumApi.getMlStatus", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("calls GET /premium/ml-status", async () => {
+    mockFetch({ success: true, data: { ok: true, status: 200, url: "http://ml:8000/health" } });
+    const result = await premiumApi.getMlStatus();
+    expect(result.data.ok).toBe(true);
+    const [url] = vi.mocked(fetch).mock.calls[0];
+    expect(url).toContain("/premium/ml-status");
   });
 });
