@@ -8,6 +8,9 @@ const signToken = (id) =>
 
 const sanitizeUserOtpState = (user) => {
   if (!user) return;
+  if (typeof user.toObject === "function") {
+    return;
+  }
   user.phoneOtpHash = undefined;
   user.phoneOtpExpiresAt = undefined;
   user.phoneOtpAttempts = undefined;
@@ -48,6 +51,8 @@ const register = async (req, res, next) => {
       lastActiveAt: new Date(),
     });
 
+    const phoneOtp = user.issuePhoneOtp();
+
     // Compute KYC score
     user.computeKYCScore();
 
@@ -68,7 +73,15 @@ const register = async (req, res, next) => {
       success: true,
       message: "Registration successful. Verify your phone to complete KYC and buy plans.",
       token,
-      data: { user },
+      data: {
+        user,
+        phoneVerification: {
+          required: true,
+          otpSent: true,
+          expiresAt: user.phoneOtpExpiresAt,
+          ...(process.env.NODE_ENV !== "production" ? { devOtp: phoneOtp } : {}),
+        },
+      },
     });
   } catch (error) {
     next(error);

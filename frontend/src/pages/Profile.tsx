@@ -7,6 +7,7 @@ import AnimatedSection from "@/components/AnimatedSection";
 import { useAuth } from "@/hooks/useAuth";
 import { policyApi, authApi, type Policy } from "@/lib/api";
 import { toast } from "sonner";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 
 const Profile = () => {
   const { user, logout, refreshUser } = useAuth();
@@ -14,6 +15,9 @@ const Profile = () => {
   const [policy, setPolicy] = useState<Policy | null>(null);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpValue, setOtpValue] = useState("");
+  const [devOtp, setDevOtp] = useState<string | null>(null);
   const [name, setName] = useState(user?.name || "");
   const [email, setEmail] = useState(user?.email || "");
 
@@ -39,6 +43,35 @@ const Profile = () => {
       toast.error("Failed to update profile.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSendOtp = async () => {
+    setOtpLoading(true);
+    try {
+      const { data } = await authApi.sendPhoneOtp();
+      setDevOtp(data.devOtp || null);
+      toast.success("OTP sent to your phone.");
+    } catch {
+      toast.error("Failed to send OTP.");
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (otpValue.length < 6) return;
+    setOtpLoading(true);
+    try {
+      await authApi.verifyPhoneOtp(otpValue);
+      await refreshUser?.();
+      setOtpValue("");
+      setDevOtp(null);
+      toast.success("Phone verified. KYC updated.");
+    } catch {
+      toast.error("OTP verification failed.");
+    } finally {
+      setOtpLoading(false);
     }
   };
 
@@ -124,9 +157,41 @@ const Profile = () => {
                   <ShieldCheck className="h-5 w-5 text-primary shrink-0" />
                   <div>
                     <p className="text-xs text-muted-foreground">KYC Score</p>
-                    <p className="text-sm font-medium text-foreground">{user.kycScore}/100</p>
+                    <p className="text-sm font-medium text-foreground">
+                      {user.kycScore}/100 {user.phoneVerified ? "• Phone Verified" : "• Phone Not Verified"}
+                    </p>
                   </div>
                 </div>
+                {!user.phoneVerified ? (
+                  <div className="rounded-lg border border-amber-300/30 bg-amber-500/10 p-4 space-y-3">
+                    <p className="text-sm text-amber-200">
+                      KYC verification pending. Verify phone OTP to activate plan purchase.
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant="outline" size="sm" onClick={handleSendOtp} disabled={otpLoading}>
+                        {otpLoading ? "Sending..." : "Send OTP"}
+                      </Button>
+                    </div>
+                    <div className="space-y-2">
+                      <InputOTP maxLength={6} value={otpValue} onChange={setOtpValue}>
+                        <InputOTPGroup>
+                          <InputOTPSlot index={0} />
+                          <InputOTPSlot index={1} />
+                          <InputOTPSlot index={2} />
+                          <InputOTPSlot index={3} />
+                          <InputOTPSlot index={4} />
+                          <InputOTPSlot index={5} />
+                        </InputOTPGroup>
+                      </InputOTP>
+                      <Button size="sm" onClick={handleVerifyOtp} disabled={otpLoading || otpValue.length < 6}>
+                        Verify OTP
+                      </Button>
+                      {devOtp ? (
+                        <p className="text-xs text-muted-foreground">Dev OTP: {devOtp}</p>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             )}
           </div>

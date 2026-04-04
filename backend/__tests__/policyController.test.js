@@ -44,6 +44,7 @@ jest.mock("../src/config/logger", () => ({
 const Plan = require("../src/models/Plan");
 const Policy = require("../src/models/Policy");
 const Claim = require("../src/models/Claim");
+const User = require("../src/models/User");
 
 // ─── Helpers ──────────────────────────────────────────────
 
@@ -73,7 +74,11 @@ const makeUserDoc = (overrides = {}) => ({
   name: "Test Worker",
   location: { zone: "default" },
   weeklyAvgIncome: 5000,
+  phoneVerified: true,
+  kycVerified: true,
   kycScore: 0,
+  computeKYCScore: jest.fn(),
+  save: jest.fn().mockResolvedValue(true),
   ...overrides,
 });
 
@@ -169,6 +174,7 @@ describe("policyController.subscribe", () => {
   afterEach(() => jest.clearAllMocks());
 
   it("returns 404 when plan is not found", async () => {
+    User.findById.mockResolvedValue(makeUserDoc({ kycScore: 80 }));
     Plan.findById.mockResolvedValue(null);
 
     const req = { body: { planId: "nonexistent" }, user: makeUserDoc() };
@@ -182,6 +188,7 @@ describe("policyController.subscribe", () => {
   });
 
   it("returns 400 if user already has an active policy", async () => {
+    User.findById.mockResolvedValue(makeUserDoc({ kycScore: 80 }));
     const planDoc = makePlanDoc();
     Plan.findById.mockResolvedValue(planDoc);
 
@@ -199,6 +206,7 @@ describe("policyController.subscribe", () => {
   });
 
   it("creates a policy and returns a Razorpay order when eligible", async () => {
+    User.findById.mockResolvedValue(makeUserDoc({ kycScore: 80 }));
     const planDoc = makePlanDoc();
     Plan.findById.mockResolvedValue(planDoc);
     Policy.findOne.mockResolvedValue(null); // no existing active policy
@@ -221,6 +229,19 @@ describe("policyController.subscribe", () => {
     expect(body.success).toBe(true);
     expect(body.data.payment.orderId).toBe("order_test_123");
     expect(body.data.policy).toHaveProperty("mlDecision");
+  });
+
+  it("returns 403 when KYC verification is pending", async () => {
+    User.findById.mockResolvedValue(makeUserDoc({ phoneVerified: false, kycVerified: false, kycScore: 20 }));
+    const req = { body: { planId: "plan_id_123" }, user: makeUserDoc({ phoneVerified: false, kycScore: 20 }) };
+    const res = makeRes();
+    const next = jest.fn();
+
+    await subscribe(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    const body = res.json.mock.calls[0][0];
+    expect(body.code).toBe("KYC_VERIFICATION_PENDING");
   });
 });
 

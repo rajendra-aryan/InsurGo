@@ -31,7 +31,15 @@ async function request<T>(
   const data = await res.json();
 
   if (!res.ok) {
-    throw new Error(data.message || `Request failed: ${res.status}`);
+    const error = new Error(data.message || `Request failed: ${res.status}`) as Error & {
+      code?: string;
+      data?: unknown;
+      status?: number;
+    };
+    error.code = data?.code;
+    error.data = data?.data;
+    error.status = res.status;
+    throw error;
   }
   return data;
 }
@@ -51,6 +59,8 @@ export interface User {
   name: string;
   phone: string;
   email?: string;
+  phoneVerified?: boolean;
+  phoneVerifiedAt?: string;
   kycVerified: boolean;
   kycScore: number;
   platformVerified: boolean;
@@ -171,6 +181,15 @@ export const authApi = {
 
   heartbeat: (lat?: number, lng?: number) =>
     post<{ success: boolean }>("/auth/heartbeat", { lat, lng }),
+
+  sendPhoneOtp: () =>
+    post<{ success: boolean; data: { otpSent: boolean; expiresAt: string; devOtp?: string } }>(
+      "/auth/phone-otp/send",
+      {}
+    ),
+
+  verifyPhoneOtp: (otp: string) =>
+    post<{ success: boolean; data: { user: User } }>("/auth/phone-otp/verify", { otp }),
 };
 
 // ─── Policies ─────────────────────────────────────────────

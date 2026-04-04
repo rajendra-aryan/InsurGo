@@ -64,6 +64,7 @@ const buildMlPayload = ({
     low_movement,
     high_risk_zone,
     is_active: toBinary(activeUser || !!gpsSnapshot),
+    risk_score: null,
   };
 };
 
